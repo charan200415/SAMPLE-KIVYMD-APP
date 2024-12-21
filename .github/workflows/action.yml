@@ -13,18 +13,24 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Setup Pythonss
         uses: actions/setup-python@v5
         with:
           architecture: x64
           python-version: 3.8
 
-      - name: Fix GPG Key Issue for GitHub CLI Repository
+      - name: Fix GPG Key Issue and Add Universe Repository
         run: |
           sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-key C99B11DEB97541F0
           sudo sed -i '/cdrom:/s/^/#/' /etc/apt/sources.list
           sudo add-apt-repository universe
           sudo apt update
+        shell: bash
+
+      - name: Manually Install libtinfo5
+        run: |
+          wget https://launchpad.net/ubuntu/+source/ncurses/6.4-2/+build/25522504/+files/libtinfo5_6.4-2_i386.deb
+          sudo dpkg -i libtinfo5_6.4-2_i386.deb
         shell: bash
 
       - name: Install Required Dependencies
@@ -42,8 +48,7 @@ jobs:
             libncursesw5-dev \
             cmake \
             libffi-dev \
-            libssl-dev \
-            libtinfo5
+            libssl-dev
           python3 -m pip install --upgrade \
             Cython==0.29.33 \
             buildozer

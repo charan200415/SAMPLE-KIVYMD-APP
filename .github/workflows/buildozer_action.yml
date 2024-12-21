@@ -1,7 +1,7 @@
 # Sample repository at https://github.com/Novfensec/SAMPLE-KIVYMD-APP
 # Tic Tac Toe Game at https://github.com/Novfensec/Tic-Tac-Toe-Android
 
-name: Android Build
+name: Android Builds
 
 on:
   push:

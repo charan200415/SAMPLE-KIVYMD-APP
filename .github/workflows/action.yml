@@ -19,32 +19,16 @@ jobs:
           architecture: x64
           python-version: 3.8
 
-      - name: Setup Java 17 required by Gradle
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Install Dependencies (Alternative)
+      - name: Fix GPG Key Issue for GitHub CLI Repository
         run: |
-         sudo apt update
-         sudo apt install -y libncurses5-dev libncursesw5-dev
-        shell: bash
-      - name: Set JAVA_HOME
-        run: |
-          echo "JAVA_HOME=$JAVA_HOME" >> $GITHUB_ENV
-        shell: bash
-
-      - name: Prepare Virtual Environment
-        run: |
-          python3 -m venv venv
-          source venv/bin/activate
-          echo "Using Python==$(python --version)"
-        shell: bash
-
-      - name: Install and Upgrade Dependencies
-        run: |
+          sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-key C99B11DEB97541F0
+          sudo sed -i '/cdrom:/s/^/#/' /etc/apt/sources.list
+          sudo add-apt-repository universe
           sudo apt update
+        shell: bash
+
+      - name: Install Required Dependencies
+        run: |
           sudo apt install -y git \
             zip \
             unzip \
@@ -56,24 +40,23 @@ jobs:
             zlib1g-dev \
             libncurses5-dev \
             libncursesw5-dev \
-            libtinfo5 \
             cmake \
             libffi-dev \
-            libssl-dev
-          export PATH=$PATH:~/.local/bin/
+            libssl-dev \
+            libtinfo5
           python3 -m pip install --upgrade \
             Cython==0.29.33 \
             buildozer
         shell: bash
 
-      - name: Install Requirements
+      - name: Install Python Requirements
         run: |
           if [ -f requirements.txt ]; then
             python3 -m pip install -r requirements.txt
           fi
         shell: bash
 
-      - name: Build with Buildozer
+      - name: Build APK with Buildozer
         run: |
           buildozer -v android debug
         shell: bash

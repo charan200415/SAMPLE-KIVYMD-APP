@@ -25,10 +25,10 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Update APT Repository and Install Compatibility Packages
+      - name: Install Dependencies (Alternative)
         run: |
-          sudo apt update
-          sudo apt install -y libncurses5 libncurses5-dev
+         sudo apt update
+         sudo apt install -y libncurses5-dev libncursesw5-dev
         shell: bash
       - name: Set JAVA_HOME
         run: |

@@ -25,6 +25,11 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      - name: Update APT Repository and Install Compatibility Packages
+        run: |
+          sudo apt update
+          sudo apt install -y libncurses5 libncurses5-dev
+        shell: bash
       - name: Set JAVA_HOME
         run: |
           echo "JAVA_HOME=$JAVA_HOME" >> $GITHUB_ENV

@@ -7,7 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build APK
+      - name: Build new APK
         uses: digreatbrian/buildozer-action@v2
         with:
           python-version: 3.8

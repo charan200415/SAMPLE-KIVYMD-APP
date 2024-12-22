@@ -1,110 +1,81 @@
-import asyncio
-import socket
-from threading import Thread
 from kivy.app import App
 from kivy.uix.label import Label
-from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
-from websockets import serve
-if platform == 'android':
-    from android.permissions import request_permissions, check_permission, Permission
-from kivy.utils import platform
+from kivy.uix.boxlayout import BoxLayout
 from kivy.clock import Clock
+import threading
+import websocket
+import json
 
-def request_android_permissions(callback):
-    """Request necessary permissions at runtime."""
-    required_permissions = [
-        Permission.INTERNET,
-        Permission.ACCESS_NETWORK_STATE,
-        Permission.ACCESS_WIFI_STATE,
-    ]
+class WebSocketClientApp(App):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.ws = None
+        self.received_text = "Waiting for messages..."
+        self.status_label = None
+        self.ip_input = None
+        self.connect_button = None
+        self.websocket_url = "ws://192.168.1.100:8000/ws" # Default IP
 
-    def callback_wrapper(permissions, results):
-        if all(results):
-            callback()
-        else:
-            print("Permissions not granted")
-
-    # Check and request permissions if not already granted
-    if platform == 'android':
-        request_permissions(required_permissions, callback_wrapper)
-    else:
-        callback()
-
-def get_wifi_ip():
-    """Retrieve the device's local IP address."""
-    try:
-        # Use hostname as a fallback if Wi-Fi access is restricted
-        hostname = socket.gethostname()
-        local_ip = socket.gethostbyname(hostname)
-        return local_ip
-    except Exception as e:
-        return f"Error retrieving IP: {str(e)}"
-
-class MainApp(App):
     def build(self):
-        # Main UI layout
-        layout = BoxLayout(orientation="vertical", padding=10, spacing=10)
+        layout = BoxLayout(orientation='vertical')
 
-        # Status label to display messages
-        self.status_label = Label(text="WebSocket Server: Initializing...", size_hint=(1, 0.2))
+        # IP Address input
+        ip_layout = BoxLayout(orientation='horizontal')
+        ip_layout.add_widget(Label(text="PC IP Address:"))
+        self.ip_input = TextInput(text=self.websocket_url.split("//")[1].split(":")[0], multiline=False) # Set default value as current IP address
+        ip_layout.add_widget(self.ip_input)
+        layout.add_widget(ip_layout)
+
+
+        # Connect Button
+        self.connect_button = Button(text="Connect")
+        self.connect_button.bind(on_press=self.start_websocket) # Connect to server when clicked
+        layout.add_widget(self.connect_button)
+
+        self.status_label = Label(text=self.received_text)
         layout.add_widget(self.status_label)
-
-        # Button to simulate interaction
-        test_button = Button(text="Simulate me Action", size_hint=(1, 0.2))
-        test_button.bind(on_press=self.simulate_action)
-        layout.add_widget(test_button)
-
-        # Request permissions and start server
-        request_android_permissions(self.start_server)
-
         return layout
 
-    def simulate_action(self, instance):
-        """Simulate an action triggered from the UI."""
-        self.status_label.text = "Simulated actions triggered!"
 
-    def start_server(self):
-        """Start the WebSocket server in a separate thread."""
-        def run_asyncio_loop():
-            asyncio.run(self.websocket_server())
+    def start_websocket(self, instance): # Pass instance so the on_press knows what widget was pressed
+        ip_address = self.ip_input.text
+        self.websocket_url = f"ws://{ip_address}:8000/ws" #Update url
+        if self.ws and self.ws.sock:
+            self.ws.close() #Close connection to connect again
 
-        thread = Thread(target=run_asyncio_loop, daemon=True)
-        thread.start()
+        self.ws = websocket.WebSocketApp(self.websocket_url,
+                on_open=self.on_open,
+                on_message=self.on_message,
+                on_error=self.on_error,
+                on_close=self.on_close)
+      
+        threading.Thread(target=self.ws.run_forever).start() # Run the connection in its own thread
 
-    async def websocket_server(self):
-        """Asynchronous WebSocket server to handle AI commands."""
-        try:
-            async def handle_client(websocket, path):
-                # Notify connection
-                self.update_status("Client connected!")
+    def on_open(self, ws):
+      print("WebSocket connection established")
+      self.received_text = "Connected to Server"
+      Clock.schedule_once(self.update_label, 0)
 
-                async for message in websocket:
-                    # Process incoming messages
-                    self.update_status(f"Received: {message}")
-                    if message == "CALL_FRIEND":
-                        self.update_status("Action: Call friend!")
-                    elif message == "SEND_SMS":
-                        self.update_status("Action: Send SMS!")
-                    else:
-                        self.update_status(f"Unknown command: {message}")
+    def on_message(self, ws, message):
+      print(f"Received message: {message}")
+      self.received_text = message
+      Clock.schedule_once(self.update_label, 0)
 
-            # Get the Wi-Fi IP address or fallback
-            local_ip = get_wifi_ip()
+    def on_error(self, ws, error):
+      print(f"WebSocket Error: {error}")
+      self.received_text = f"Error: {error}"
+      Clock.schedule_once(self.update_label, 0)
 
-            # Show the IP address in the UI
-            self.update_status(f"Server IP: {local_ip}")
+    def on_close(self, ws, close_status_code, close_msg):
+        print("WebSocket connection closed")
+        self.received_text = "Connection Closed"
+        Clock.schedule_once(self.update_label, 0)
 
-            # Start the WebSocket server
-            server = await serve(handle_client, "0.0.0.0", 8765)
-            self.update_status(f"WebSocket Server: Listening on {local_ip}:8765")
-            await server.wait_closed()
-        except Exception as e:
-            self.update_status(f"Error: {str(e)}")
+    def update_label(self, dt):
+      self.status_label.text = self.received_text
 
-    def update_status(self, message):
-        """Update the status label safely from any thread."""
-        Clock.schedule_once(lambda dt: setattr(self.status_label, 'text', message))
 
-if __name__ == "__main__":
-    MainApp().run()
+if __name__ == '__main__':
+    WebSocketClientApp().run()

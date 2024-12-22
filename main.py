@@ -6,6 +6,7 @@ from kivy.uix.label import Label
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from websockets import serve
+from jnius import autoclass
 
 class MainApp(App):
     def build(self):
@@ -54,9 +55,8 @@ class MainApp(App):
                 else:
                     self.update_status(f"Unknown command: {message}")
 
-        # Get local IP address
-        hostname = socket.gethostname()
-        local_ip = socket.gethostbyname(hostname)
+        # Get the Wi-Fi IP address
+        local_ip = self.get_wifi_ip()
 
         # Show the IP address in the UI
         self.update_status(f"Server IP: {local_ip}")
@@ -65,6 +65,23 @@ class MainApp(App):
         server = await serve(handle_client, "0.0.0.0", 8765)
         self.update_status(f"WebSocket Server: Listening on {local_ip}:8765")
         await server.wait_closed()
+
+    def get_wifi_ip(self):
+        """Retrieve the device's local Wi-Fi IP address."""
+        WifiInfo = autoclass("android.net.wifi.WifiInfo")
+        WifiManager = autoclass("android.net.wifi.WifiManager")
+        Context = autoclass("android.content.Context")
+
+        # Get the application context
+        activity = autoclass("org.kivy.android.PythonActivity").mActivity
+        wifi_service = activity.getSystemService(Context.WIFI_SERVICE)
+        wifi_manager = wifi_service.cast(WifiManager)
+        connection_info = wifi_manager.getConnectionInfo()
+
+        # Extract the IP address from the connection info
+        ip_address = connection_info.getIpAddress()
+        ip = socket.inet_ntoa(ip_address.to_bytes(4, "little"))
+        return ip
 
     def update_status(self, message):
         """Update the status label safely from any thread."""

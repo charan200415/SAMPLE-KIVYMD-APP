@@ -21,7 +21,7 @@ main.py = main.py
 version = 1.0
 
 # (list) Application requirements (comma-separated Python modules and libraries)
-requirements = python3,kivy,websockets
+requirements = python3,kivy,websockets,pyjnius
 
 # (str) Application orientation
 orientation = portrait

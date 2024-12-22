@@ -8,6 +8,25 @@ from kivy.uix.button import Button
 from websockets import serve
 from jnius import autoclass
 
+def get_wifi_ip():
+    """Retrieve the device's local Wi-Fi IP address."""
+    try:
+        # Access Android's Wi-Fi service
+        PythonActivity = autoclass('org.kivy.android.PythonActivity')
+        Context = autoclass('android.content.Context')
+        WifiManager = autoclass('android.net.wifi.WifiManager')
+        wifi_service = PythonActivity.mActivity.getSystemService(Context.WIFI_SERVICE)
+        wifi_manager = wifi_service.cast(WifiManager)
+        connection_info = wifi_manager.getConnectionInfo()
+
+        # Extract the IP address
+        ip_address = connection_info.getIpAddress()
+        # Convert the integer IP to a human-readable string
+        ip = socket.inet_ntoa(ip_address.to_bytes(4, 'little'))
+        return ip
+    except Exception as e:
+        return f"Error retrieving IP: {str(e)}"
+
 class MainApp(App):
     def build(self):
         # Main UI layout
@@ -41,47 +60,33 @@ class MainApp(App):
 
     async def websocket_server(self):
         """Asynchronous WebSocket server to handle AI commands."""
-        async def handle_client(websocket, path):
-            # Notify connection
-            self.update_status("Client connected!")
+        try:
+            async def handle_client(websocket, path):
+                # Notify connection
+                self.update_status("Client connected!")
 
-            async for message in websocket:
-                # Process incoming messages
-                self.update_status(f"Received: {message}")
-                if message == "CALL_FRIEND":
-                    self.update_status("Action: Call friend!")
-                elif message == "SEND_SMS":
-                    self.update_status("Action: Send SMS!")
-                else:
-                    self.update_status(f"Unknown command: {message}")
+                async for message in websocket:
+                    # Process incoming messages
+                    self.update_status(f"Received: {message}")
+                    if message == "CALL_FRIEND":
+                        self.update_status("Action: Call friend!")
+                    elif message == "SEND_SMS":
+                        self.update_status("Action: Send SMS!")
+                    else:
+                        self.update_status(f"Unknown command: {message}")
 
-        # Get the Wi-Fi IP address
-        local_ip = self.get_wifi_ip()
+            # Get the Wi-Fi IP address
+            local_ip = get_wifi_ip()
 
-        # Show the IP address in the UI
-        self.update_status(f"Server IP: {local_ip}")
+            # Show the IP address in the UI
+            self.update_status(f"Server IP: {local_ip}")
 
-        # Start the WebSocket server
-        server = await serve(handle_client, "0.0.0.0", 8765)
-        self.update_status(f"WebSocket Server: Listening on {local_ip}:8765")
-        await server.wait_closed()
-
-    def get_wifi_ip(self):
-        """Retrieve the device's local Wi-Fi IP address."""
-        WifiInfo = autoclass("android.net.wifi.WifiInfo")
-        WifiManager = autoclass("android.net.wifi.WifiManager")
-        Context = autoclass("android.content.Context")
-
-        # Get the application context
-        activity = autoclass("org.kivy.android.PythonActivity").mActivity
-        wifi_service = activity.getSystemService(Context.WIFI_SERVICE)
-        wifi_manager = wifi_service.cast(WifiManager)
-        connection_info = wifi_manager.getConnectionInfo()
-
-        # Extract the IP address from the connection info
-        ip_address = connection_info.getIpAddress()
-        ip = socket.inet_ntoa(ip_address.to_bytes(4, "little"))
-        return ip
+            # Start the WebSocket server
+            server = await serve(handle_client, "0.0.0.0", 8765)
+            self.update_status(f"WebSocket Server: Listening on {local_ip}:8765")
+            await server.wait_closed()
+        except Exception as e:
+            self.update_status(f"Error: {str(e)}")
 
     def update_status(self, message):
         """Update the status label safely from any thread."""
@@ -89,3 +94,4 @@ class MainApp(App):
 
 if __name__ == "__main__":
     MainApp().run()
+    

@@ -1,19 +1,22 @@
 import kivy
-kivy.require('2.1.0')  # Replace with your Kivy version if different
+kivy.require('2.1.0')
 from kivy.app import App
 from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
 from kivy.uix.boxlayout import BoxLayout
 from kivy.properties import StringProperty
+from kivy.support import install_twisted_reactor
+from kivy.clock import Clock
+import asyncio
+import websockets
 import threading
-import websocket
-import json
 
 class WebSocketClientApp(App):
     received_text = StringProperty("Waiting for messages...")
-    websocket_url = StringProperty("ws://192.168.29.193:8000")  # Default IP (no /ws)
-    ws = None
+    websocket_url = StringProperty("ws://192.168.29.193:8765")  # Updated port to match server
+    websocket = None
+    loop = None
 
     def build(self):
         layout = BoxLayout(orientation='vertical')
@@ -35,46 +38,48 @@ class WebSocketClientApp(App):
         layout.add_widget(self.status_label)
         return layout
 
+    async def receive_messages(self, websocket):
+        while True:
+            try:
+                message = await websocket.recv()
+                Clock.schedule_once(lambda dt: setattr(self, 'received_text', f"Received: {message}"))
+            except websockets.ConnectionClosed:
+                Clock.schedule_once(lambda dt: setattr(self, 'received_text', "Connection Closed"))
+                break
+            except Exception as e:
+                Clock.schedule_once(lambda dt: setattr(self, 'received_text', f"Error: {str(e)}"))
+                break
+
+    async def connect_websocket(self):
+        try:
+            self.websocket = await websockets.connect(self.websocket_url)
+            Clock.schedule_once(lambda dt: setattr(self, 'received_text', "Connected!"))
+            await self.websocket.send("Hello, Server!")
+            await self.receive_messages(self.websocket)
+        except Exception as e:
+            Clock.schedule_once(lambda dt: setattr(self, 'received_text', f"Connection Error: {str(e)}"))
+
     def start_websocket(self, instance):
         ip_address = self.ip_input.text
-        self.websocket_url = f"ws://{ip_address}:8000"  # Update URL (no /ws if server expects it at the root)
+        self.websocket_url = f"ws://{ip_address}:8765"
         self.received_text = "Connecting..."
 
-        if self.ws:  # Check if a WebSocket connection exists
-            self.ws.close()  # Close existing connection before creating a new one
+        if not self.loop:
+            self.loop = asyncio.new_event_loop()
 
-        def on_open(ws):
-            print("WebSocket connection established")
-            self.received_text = "Connected!"
-            ws.send(json.dumps({"type":"connect","message":"Client Connected"}))
+        def run_connection():
+            asyncio.set_event_loop(self.loop)
+            self.loop.run_until_complete(self.connect_websocket())
 
-        def on_message(ws, message):
-            print(f"Received message: {message}")
-            try:
-                data = json.loads(message)
-                if data["type"] == "message":
-                    self.received_text = data["message"]
-            except json.JSONDecodeError:
-                self.received_text = message
-
-        def on_error(ws, error):
-            print(f"WebSocket Error: {error}")
-            self.received_text = f"Error: {error}"
-
-        def on_close(ws, close_status_code, close_msg):
-            print("WebSocket connection closed")
-            self.received_text = "Connection Closed"
-            self.ws=None # set ws to None when the connection is closed
-
-        self.ws = websocket.WebSocketApp(self.websocket_url,
-                                         on_open=on_open,
-                                         on_message=on_message,
-                                         on_error=on_error,
-                                         on_close=on_close)
-
-        thread = threading.Thread(target=self.ws.run_forever)
-        thread.daemon = True # Allow the main thread to exit even if the websocket thread is running
+        thread = threading.Thread(target=run_connection)
+        thread.daemon = True
         thread.start()
+
+    def on_stop(self):
+        if self.websocket:
+            self.loop.run_until_complete(self.websocket.close())
+        if self.loop:
+            self.loop.close()
 
 if __name__ == '__main__':
     WebSocketClientApp().run()

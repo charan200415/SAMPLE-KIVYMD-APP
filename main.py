@@ -16,7 +16,7 @@ class WebSocketClientApp(App):
         self.status_label = None
         self.ip_input = None
         self.connect_button = None
-        self.websocket_url = "ws://192.168.1.100:8000/ws" # Default IP
+        self.websocket_url = "ws://192.168.29.193:8000/ws" # Default IP
 
     def build(self):
         layout = BoxLayout(orientation='vertical')

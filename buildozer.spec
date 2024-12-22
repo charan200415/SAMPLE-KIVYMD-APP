@@ -5,7 +5,7 @@ package.domain = org.example
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas
 version = 1.0
-requirements = python3,kivy,websockets,asyncio,plyer,android
+requirements = python3,kivy,websocket-client,plyer,android
 orientation = portrait
 fullscreen = 1
 

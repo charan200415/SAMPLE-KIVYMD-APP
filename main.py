@@ -7,6 +7,14 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from websockets import serve
 from jnius import autoclass
+from android.permissions import request_permissions, Permission
+
+
+def request_android_permissions():
+    """Request required Android permissions."""
+    request_permissions([Permission.INTERNET, 
+                         Permission.ACCESS_NETWORK_STATE, 
+                         Permission.ACCESS_WIFI_STATE])
 
 
 def get_wifi_ip():
@@ -31,6 +39,9 @@ def get_wifi_ip():
 
 class MainApp(App):
     def build(self):
+        # Request permissions
+        request_android_permissions()
+
         # Main UI layout
         layout = BoxLayout(orientation="vertical", padding=10, spacing=10)
 
@@ -97,4 +108,3 @@ class MainApp(App):
 
 if __name__ == "__main__":
     MainApp().run()
-    

@@ -7,14 +7,22 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from websockets import serve
 from jnius import autoclass
-from android.permissions import request_permissions, Permission
+from android.permissions import request_permissions, check_permission, Permission
 
 
 def request_android_permissions():
-    """Request required Android permissions."""
-    request_permissions([Permission.INTERNET, 
-                         Permission.ACCESS_NETWORK_STATE, 
-                         Permission.ACCESS_WIFI_STATE])
+    """Request necessary permissions at runtime."""
+    required_permissions = [
+        Permission.INTERNET,
+        Permission.ACCESS_NETWORK_STATE,
+        Permission.ACCESS_WIFI_STATE,
+    ]
+
+    # Check if permissions are already granted
+    for permission in required_permissions:
+        if not check_permission(permission):
+            request_permissions(required_permissions)
+            break
 
 
 def get_wifi_ip():

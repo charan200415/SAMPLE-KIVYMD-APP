@@ -8,6 +8,7 @@ from kivy.uix.button import Button
 from websockets import serve
 from jnius import autoclass
 
+
 def get_wifi_ip():
     """Retrieve the device's local Wi-Fi IP address."""
     try:
@@ -16,16 +17,17 @@ def get_wifi_ip():
         Context = autoclass('android.content.Context')
         WifiManager = autoclass('android.net.wifi.WifiManager')
         wifi_service = PythonActivity.mActivity.getSystemService(Context.WIFI_SERVICE)
-        wifi_manager = wifi_service.cast(WifiManager)
-        connection_info = wifi_manager.getConnectionInfo()
+        connection_info = wifi_service.getConnectionInfo()
 
         # Extract the IP address
         ip_address = connection_info.getIpAddress()
-        # Convert the integer IP to a human-readable string
+
+        # Convert integer IP to human-readable format
         ip = socket.inet_ntoa(ip_address.to_bytes(4, 'little'))
         return ip
     except Exception as e:
         return f"Error retrieving IP: {str(e)}"
+
 
 class MainApp(App):
     def build(self):
@@ -91,6 +93,7 @@ class MainApp(App):
     def update_status(self, message):
         """Update the status label safely from any thread."""
         self.status_label.text = message
+
 
 if __name__ == "__main__":
     MainApp().run()

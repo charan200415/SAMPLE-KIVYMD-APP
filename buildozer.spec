@@ -2,7 +2,7 @@
 title = First
 
 # (str) Package name
-package.name = First
+package.name = first
 
 # (str) Package domain (unique identifier for your app)
 package.domain = org.charan

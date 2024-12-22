@@ -6,10 +6,12 @@ from kivy.uix.label import Label
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from websockets import serve
-from android.permissions import request_permissions, check_permission, Permission
+if platform == 'android':
+    from android.permissions import request_permissions, check_permission, Permission
+from kivy.utils import platform
+from kivy.clock import Clock
 
-
-def request_android_permissions():
+def request_android_permissions(callback):
     """Request necessary permissions at runtime."""
     required_permissions = [
         Permission.INTERNET,
@@ -17,12 +19,17 @@ def request_android_permissions():
         Permission.ACCESS_WIFI_STATE,
     ]
 
-    # Check and request permissions if not already granted
-    for permission in required_permissions:
-        if not check_permission(permission):
-            request_permissions(required_permissions)
-            break
+    def callback_wrapper(permissions, results):
+        if all(results):
+            callback()
+        else:
+            print("Permissions not granted")
 
+    # Check and request permissions if not already granted
+    if platform == 'android':
+        request_permissions(required_permissions, callback_wrapper)
+    else:
+        callback()
 
 def get_wifi_ip():
     """Retrieve the device's local IP address."""
@@ -34,12 +41,8 @@ def get_wifi_ip():
     except Exception as e:
         return f"Error retrieving IP: {str(e)}"
 
-
 class MainApp(App):
     def build(self):
-        # Request permissions
-        request_android_permissions()
-
         # Main UI layout
         layout = BoxLayout(orientation="vertical", padding=10, spacing=10)
 
@@ -52,8 +55,8 @@ class MainApp(App):
         test_button.bind(on_press=self.simulate_action)
         layout.add_widget(test_button)
 
-        # Start WebSocket server in the background
-        self.start_server()
+        # Request permissions and start server
+        request_android_permissions(self.start_server)
 
         return layout
 
@@ -101,8 +104,7 @@ class MainApp(App):
 
     def update_status(self, message):
         """Update the status label safely from any thread."""
-        self.status_label.text = message
-
+        Clock.schedule_once(lambda dt: setattr(self.status_label, 'text', message))
 
 if __name__ == "__main__":
     MainApp().run()

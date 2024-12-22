@@ -6,7 +6,6 @@ from kivy.uix.label import Label
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from websockets import serve
-from jnius import autoclass
 from android.permissions import request_permissions, check_permission, Permission
 
 
@@ -18,7 +17,7 @@ def request_android_permissions():
         Permission.ACCESS_WIFI_STATE,
     ]
 
-    # Check if permissions are already granted
+    # Check and request permissions if not already granted
     for permission in required_permissions:
         if not check_permission(permission):
             request_permissions(required_permissions)
@@ -26,21 +25,12 @@ def request_android_permissions():
 
 
 def get_wifi_ip():
-    """Retrieve the device's local Wi-Fi IP address."""
+    """Retrieve the device's local IP address."""
     try:
-        # Access Android's Wi-Fi service
-        PythonActivity = autoclass('org.kivy.android.PythonActivity')
-        Context = autoclass('android.content.Context')
-        WifiManager = autoclass('android.net.wifi.WifiManager')
-        wifi_service = PythonActivity.mActivity.getSystemService(Context.WIFI_SERVICE)
-        connection_info = wifi_service.getConnectionInfo()
-
-        # Extract the IP address
-        ip_address = connection_info.getIpAddress()
-
-        # Convert integer IP to human-readable format
-        ip = socket.inet_ntoa(ip_address.to_bytes(4, 'little'))
-        return ip
+        # Use hostname as a fallback if Wi-Fi access is restricted
+        hostname = socket.gethostname()
+        local_ip = socket.gethostbyname(hostname)
+        return local_ip
     except Exception as e:
         return f"Error retrieving IP: {str(e)}"
 
@@ -58,7 +48,7 @@ class MainApp(App):
         layout.add_widget(self.status_label)
 
         # Button to simulate interaction
-        test_button = Button(text="Simulate Action", size_hint=(1, 0.2))
+        test_button = Button(text="Simulate me Action", size_hint=(1, 0.2))
         test_button.bind(on_press=self.simulate_action)
         layout.add_widget(test_button)
 
@@ -69,7 +59,7 @@ class MainApp(App):
 
     def simulate_action(self, instance):
         """Simulate an action triggered from the UI."""
-        self.status_label.text = "Simulated action triggered!"
+        self.status_label.text = "Simulated actions triggered!"
 
     def start_server(self):
         """Start the WebSocket server in a separate thread."""
@@ -96,7 +86,7 @@ class MainApp(App):
                     else:
                         self.update_status(f"Unknown command: {message}")
 
-            # Get the Wi-Fi IP address
+            # Get the Wi-Fi IP address or fallback
             local_ip = get_wifi_ip()
 
             # Show the IP address in the UI

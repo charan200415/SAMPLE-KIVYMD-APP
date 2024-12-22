@@ -11,6 +11,12 @@ from kivy.clock import Clock
 import asyncio
 import websockets
 import threading
+import traceback
+import logging
+from kivy.logger import Logger
+
+# Set up logging
+logging.basicConfig(level=logging.DEBUG)
 
 class WebSocketClientApp(App):
     received_text = StringProperty("Waiting for messages...")
@@ -38,6 +44,22 @@ class WebSocketClientApp(App):
         layout.add_widget(self.status_label)
         return layout
 
+    def on_start(self):
+        """Called when the application starts."""
+        try:
+            Logger.info('App: Application starting...')
+            # Ensure the app has all required permissions
+            if kivy.platform == 'android':
+                from android.permissions import request_permissions, Permission
+                request_permissions([
+                    Permission.INTERNET,
+                    Permission.ACCESS_NETWORK_STATE,
+                    Permission.ACCESS_WIFI_STATE
+                ])
+        except Exception as e:
+            Logger.error(f'App: Error during startup: {str(e)}')
+            Logger.error(f'App: {traceback.format_exc()}')
+
     async def receive_messages(self, websocket):
         while True:
             try:
@@ -52,28 +74,53 @@ class WebSocketClientApp(App):
 
     async def connect_websocket(self):
         try:
-            self.websocket = await websockets.connect(self.websocket_url)
+            Logger.info(f'WebSocket: Attempting to connect to {self.websocket_url}')
+            self.websocket = await websockets.connect(
+                self.websocket_url,
+                ping_interval=None,  # Disable ping to avoid some connection issues
+                close_timeout=1000
+            )
             Clock.schedule_once(lambda dt: setattr(self, 'received_text', "Connected!"))
             await self.websocket.send("Hello, Server!")
             await self.receive_messages(self.websocket)
         except Exception as e:
-            Clock.schedule_once(lambda dt: setattr(self, 'received_text', f"Connection Error: {str(e)}"))
+            error_msg = f"Connection Error: {str(e)}\n{traceback.format_exc()}"
+            Logger.error(f'WebSocket: {error_msg}')
+            Clock.schedule_once(lambda dt: setattr(self, 'received_text', error_msg))
 
     def start_websocket(self, instance):
-        ip_address = self.ip_input.text
-        self.websocket_url = f"ws://{ip_address}:8765"
-        self.received_text = "Connecting..."
+        try:
+            ip_address = self.ip_input.text
+            self.websocket_url = f"ws://{ip_address}:8765"
+            self.received_text = "Connecting..."
 
-        if not self.loop:
-            self.loop = asyncio.new_event_loop()
+            if not self.loop:
+                self.loop = asyncio.new_event_loop()
 
-        def run_connection():
-            asyncio.set_event_loop(self.loop)
-            self.loop.run_until_complete(self.connect_websocket())
+            def run_connection():
+                try:
+                    asyncio.set_event_loop(self.loop)
+                    self.loop.run_until_complete(self.connect_websocket())
+                except Exception as e:
+                    Logger.error(f'Thread: Error in connection thread: {str(e)}')
+                    Logger.error(f'Thread: {traceback.format_exc()}')
 
-        thread = threading.Thread(target=run_connection)
-        thread.daemon = True
-        thread.start()
+            thread = threading.Thread(target=run_connection)
+            thread.daemon = True
+            thread.start()
+        except Exception as e:
+            Logger.error(f'App: Error starting websocket: {str(e)}')
+            Logger.error(f'App: {traceback.format_exc()}')
+
+    def on_pause(self):
+        """Called when the application is paused."""
+        Logger.info('App: Application paused')
+        return True
+
+    def on_resume(self):
+        """Called when the application is resumed."""
+        Logger.info('App: Application resumed')
+        return True
 
     def on_stop(self):
         if self.websocket:

@@ -6,7 +6,8 @@ source.dir = .
 source.include_exts = py,png,jpg,kv,atlas
 version = 1.0
 requirements = python3,kivy,websocket-client,plyer,android
-orientation = portrait
+#orientation = portrait
+orientation = portrait, landscape, portrait-reverse, landscape-reverse
 fullscreen = 1
 
 [buildozer]

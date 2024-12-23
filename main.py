@@ -15,6 +15,8 @@ import websocket  # Using websocket-client instead of websockets
 import socket
 import ssl
 from kivy.utils import platform
+from jnius import autoclass
+from android.permissions import check_permission, Permission
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -63,6 +65,18 @@ class WebSocketClientApp(App):
             Logger.error(f'App: Error during startup: {str(e)}')
             Logger.error(f'App: {traceback.format_exc()}')
 
+    def check_permissions(self):
+        if platform == 'android':
+            permissions = [
+                Permission.INTERNET,
+                Permission.ACCESS_NETWORK_STATE,
+                Permission.ACCESS_WIFI_STATE
+            ]
+            for permission in permissions:
+                if not check_permission(permission):
+                    return False
+        return True
+
     def on_message(self, ws, message):
         Clock.schedule_once(lambda dt: setattr(self, 'received_text', f"Received: {message}"))
 
@@ -82,21 +96,34 @@ class WebSocketClientApp(App):
 
     def start_websocket(self, instance):
         try:
+            if not self.check_permissions():
+                self.received_text = "Missing required permissions!"
+                return
+
             ip_address = self.ip_input.text
             self.websocket_url = f"ws://{ip_address}:8765"
             self.received_text = "Connecting..."
 
-            # Set socket options
-            websocket.setdefaulttimeout(10)
+            # Android-specific network setup
             if platform == 'android':
-                # Force IPv4
-                socket.setdefaulttimeout(10)
-                socket.socket = socket.socket(socket.AF_INET)
+                # Get Android context
+                PythonActivity = autoclass('org.kivy.android.PythonActivity')
+                context = PythonActivity.mActivity
+                
+                # Enable network on main thread
+                NetworkOnMainThreadException = autoclass('android.os.NetworkOnMainThreadException')
+                StrictMode = autoclass('android.os.StrictMode')
+                StrictMode.setThreadPolicy(StrictMode.ThreadPolicy.Builder().permitAll().build())
 
-            # Enable debug
-            websocket.enableTrace(True)
-            
-            # Create WebSocket with options
+            # WebSocket setup with custom socket options
+            ws_opts = {
+                'timeout': 10,
+                'skip_utf8_validation': True,
+                'enable_multithread': True,
+                'sslopt': {"cert_reqs": ssl.CERT_NONE},
+                'sockopt': [(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)],
+            }
+
             self.websocket = websocket.WebSocketApp(
                 self.websocket_url,
                 on_open=self.on_open,
@@ -107,34 +134,23 @@ class WebSocketClientApp(App):
 
             def run_connection():
                 try:
-                    # Set socket options for WebSocket
-                    opts = {
-                        'skip_utf8_validation': True,
-                        'enable_multithread': True,
-                        'timeout': 10,
-                        'ssl_version': ssl.PROTOCOL_TLSv1_2,
-                        'sslopt': {"cert_reqs": ssl.CERT_NONE},
-                    }
-                    
-                    self.websocket.run_forever(**opts)
+                    self.websocket.run_forever(**ws_opts)
                 except Exception as e:
                     Logger.error(f'Thread: Error in connection thread: {str(e)}')
                     Logger.error(f'Thread: {traceback.format_exc()}')
+                    Clock.schedule_once(lambda dt: setattr(self, 'received_text', f"Connection Error: {str(e)}"))
 
-            # Stop existing thread if any
             if hasattr(self, '_ws_thread') and self._ws_thread:
-                try:
-                    self._ws_thread.join(timeout=1)
-                except:
-                    pass
+                self._ws_thread.join(timeout=1)
 
             self._ws_thread = threading.Thread(target=run_connection)
             self._ws_thread.daemon = True
             self._ws_thread.start()
 
         except Exception as e:
-            Logger.error(f'App: Error starting websocket: {str(e)}')
-            Logger.error(f'App: {traceback.format_exc()}')
+            error_msg = f"Error: {str(e)}"
+            Logger.error(f'App: {error_msg}')
+            self.received_text = error_msg
 
     def on_stop(self):
         if self.websocket:

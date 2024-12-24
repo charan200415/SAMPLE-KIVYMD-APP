@@ -51,29 +51,46 @@ class WebSocketClientApp(App):
         try:
             Logger.info('App: Application starting...')
             if platform == 'android':
-                from android.permissions import request_permissions, Permission
-                request_permissions([
-                    Permission.INTERNET,
-                    Permission.ACCESS_NETWORK_STATE,
-                    Permission.ACCESS_WIFI_STATE,
-                    Permission.ACCESS_FINE_LOCATION,
-                    Permission.ACCESS_COARSE_LOCATION
-                ])
+                self.request_android_permissions()
                 # Initialize socket for Android
                 socket.setdefaulttimeout(10)
         except Exception as e:
             Logger.error(f'App: Error during startup: {str(e)}')
             Logger.error(f'App: {traceback.format_exc()}')
 
+    def request_android_permissions(self):
+        """Request Android permissions explicitly"""
+        from android.permissions import request_permissions, Permission
+        def callback(permissions, results):
+            if all([res for res in results]):
+                Logger.info('All permissions granted.')
+            else:
+                Logger.info('Some permissions not granted.')
+                self.received_text = "Some permissions were denied. The app may not work properly."
+
+        permissions = [
+            Permission.INTERNET,
+            Permission.ACCESS_NETWORK_STATE,
+            Permission.ACCESS_WIFI_STATE,
+            Permission.ACCESS_FINE_LOCATION,
+            Permission.ACCESS_COARSE_LOCATION
+        ]
+        request_permissions(permissions, callback)
+
     def check_permissions(self):
+        """Check if all required permissions are granted"""
         if platform == 'android':
+            from android.permissions import check_permission, Permission
             permissions = [
                 Permission.INTERNET,
                 Permission.ACCESS_NETWORK_STATE,
-                Permission.ACCESS_WIFI_STATE
+                Permission.ACCESS_WIFI_STATE,
+                Permission.ACCESS_FINE_LOCATION,
+                Permission.ACCESS_COARSE_LOCATION
             ]
             for permission in permissions:
                 if not check_permission(permission):
+                    Logger.error(f'Permission {permission} not granted')
                     return False
         return True
 

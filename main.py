@@ -25,6 +25,7 @@ class WebSocketClientApp(App):
     received_text = StringProperty("Waiting for messages...")
     websocket_url = StringProperty("ws://192.168.29.193:8765")
     websocket = None
+    permissions_granted = False
 
     def build(self):
         layout = BoxLayout(orientation='vertical')
@@ -51,8 +52,8 @@ class WebSocketClientApp(App):
         try:
             Logger.info('App: Application starting...')
             if platform == 'android':
+                # Request permissions immediately on startup
                 self.request_android_permissions()
-                # Initialize socket for Android
                 socket.setdefaulttimeout(10)
         except Exception as e:
             Logger.error(f'App: Error during startup: {str(e)}')
@@ -61,19 +62,22 @@ class WebSocketClientApp(App):
     def request_android_permissions(self):
         """Request Android permissions explicitly"""
         from android.permissions import request_permissions, Permission
+
         def callback(permissions, results):
             if all([res for res in results]):
                 Logger.info('All permissions granted.')
+                self.permissions_granted = True
+                self.received_text = "All permissions granted. Ready to connect."
             else:
                 Logger.info('Some permissions not granted.')
-                self.received_text = "Some permissions were denied. The app may not work properly."
+                self.permissions_granted = False
+                self.received_text = "Permission denied. Please grant permissions in Settings."
 
+        # Explicitly request each permission
         permissions = [
             Permission.INTERNET,
             Permission.ACCESS_NETWORK_STATE,
-            Permission.ACCESS_WIFI_STATE,
-            Permission.ACCESS_FINE_LOCATION,
-            Permission.ACCESS_COARSE_LOCATION
+            Permission.ACCESS_WIFI_STATE
         ]
         request_permissions(permissions, callback)
 
@@ -84,14 +88,9 @@ class WebSocketClientApp(App):
             permissions = [
                 Permission.INTERNET,
                 Permission.ACCESS_NETWORK_STATE,
-                Permission.ACCESS_WIFI_STATE,
-                Permission.ACCESS_FINE_LOCATION,
-                Permission.ACCESS_COARSE_LOCATION
+                Permission.ACCESS_WIFI_STATE
             ]
-            for permission in permissions:
-                if not check_permission(permission):
-                    Logger.error(f'Permission {permission} not granted')
-                    return False
+            return all(check_permission(permission) for permission in permissions)
         return True
 
     def on_message(self, ws, message):
@@ -112,6 +111,11 @@ class WebSocketClientApp(App):
         ws.send("Hello, Server!")
 
     def start_websocket(self, instance):
+        if platform == 'android' and not self.permissions_granted:
+            self.received_text = "Permissions not granted. Please grant permissions and restart the app."
+            self.request_android_permissions()
+            return
+
         try:
             if not self.check_permissions():
                 self.received_text = "Missing required permissions!"

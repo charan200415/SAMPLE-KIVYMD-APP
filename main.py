@@ -18,6 +18,7 @@ from kivy.utils import platform
 from jnius import autoclass
 from android.permissions import check_permission, Permission
 from kivy.lang import Builder #import the builder class
+from permissions import AndroidPermissions
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -86,8 +87,15 @@ class RootLayout(BoxLayout):
             Logger.error(f'App: {traceback.format_exc()}')
     
     def request_and_check(self):
-            self.permissions_granted = False
-            self.request_android_permissions()
+        if platform == 'android':
+            self.permissions_granted = all([
+                check_permission(Permission.INTERNET),
+                check_permission(Permission.ACCESS_NETWORK_STATE),
+                check_permission(Permission.ACCESS_WIFI_STATE)
+            ])
+            self.update_permission_labels()
+            if not self.permissions_granted:
+                self.received_text = "Permissions not granted. Please restart app."
     
     def update_permission_labels(self):
         if platform == 'android':
@@ -95,39 +103,7 @@ class RootLayout(BoxLayout):
             self.network_state_permission_label.text = f"Network State: {'Granted' if check_permission(Permission.ACCESS_NETWORK_STATE) else 'Denied'}"
             self.wifi_state_permission_label.text = f"Wifi State: {'Granted' if check_permission(Permission.ACCESS_WIFI_STATE) else 'Denied'}"
     
-
-    def request_android_permissions(self):
-        """Request Android permissions explicitly"""
-        from android.permissions import request_permissions, Permission
-        
-        def callback(permissions, results):
-            if all([res for res in results]):
-                Logger.info('All permissions granted.')
-                self.permissions_granted = True
-                self.received_text = "All permissions granted. Ready to connect."
-            else:
-                Logger.info('Some permissions not granted.')
-                self.permissions_granted = False
-                self.received_text = "Permission denied. Please try again."
-                # Force permission request again
-                Clock.schedule_once(lambda dt: self.request_android_permissions(), 1)
-
-        if platform == 'android':
-            try:
-                # Get Android activity
-                PythonActivity = autoclass('org.kivy.android.PythonActivity')
-                activity = PythonActivity.mActivity
-
-                # Request permissions with full package names
-                permissions = [
-                    "android.permission.INTERNET",
-                    "android.permission.ACCESS_NETWORK_STATE",
-                    "android.permission.ACCESS_WIFI_STATE"
-                ]
-                request_permissions(permissions, callback)
-            except Exception as e:
-                Logger.error(f'Permission request error: {str(e)}')
-                self.received_text = f"Error requesting permissions: {str(e)}"
+    # Remove request_android_permissions method as it's no longer needed
 
     def check_permissions(self):
         """Check if all required permissions are granted"""
@@ -225,9 +201,18 @@ class RootLayout(BoxLayout):
             self.websocket.close()
 
 class WebSocketClientApp(App):
-
     def build(self):
-      return RootLayout()
+        self.root = RootLayout()
+        return self.root
+
+    def on_start(self):
+        self.dont_gc = AndroidPermissions(self.start_app)
+
+    def start_app(self):
+        self.dont_gc = None
+        self.root.permissions_granted = True
+        self.root.received_text = "Permissions granted. Ready to connect."
+        self.root.update_permission_labels()
 
 
 if __name__ == '__main__':

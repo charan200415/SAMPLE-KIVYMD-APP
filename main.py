@@ -11,41 +11,67 @@ import threading
 import traceback
 import logging
 from kivy.logger import Logger
-import websocket  # Using websocket-client instead of websockets
+import websocket
 import socket
 import ssl
 from kivy.utils import platform
 from jnius import autoclass
 from android.permissions import check_permission, Permission
+from kivy.lang import Builder #import the builder class
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
 
-class WebSocketClientApp(App):
+Builder.load_string('''
+<RootLayout>:
+    orientation: 'vertical'
+
+    BoxLayout:
+        orientation: 'horizontal'
+        Label:
+            text: "Server IP Address:"
+        TextInput:
+            id: ip_input
+            multiline: False
+
+    Button:
+        id: connect_button
+        text: "Connect"
+        on_press: root.start_websocket()
+
+    Label:
+        id: status_label
+        text: root.received_text
+    Button:
+        id: retry_button
+        text: "Retry Permissions"
+        on_press: root.request_and_check()
+    Label:
+        id: internet_permission_label
+        text: "Internet: Unknown"
+    Label:
+        id: network_state_permission_label
+        text: "Network State: Unknown"
+    Label:
+        id: wifi_state_permission_label
+        text: "Wifi State: Unknown"
+''')
+
+class RootLayout(BoxLayout):
     received_text = StringProperty("Waiting for messages...")
     websocket_url = StringProperty("ws://192.168.29.193:8765")
     websocket = None
     permissions_granted = False
 
-    def build(self):
-        layout = BoxLayout(orientation='vertical')
-
-        # IP Address input
-        ip_layout = BoxLayout(orientation='horizontal')
-        ip_layout.add_widget(Label(text="Server IP Address:"))
-        self.ip_input = TextInput(text=self.websocket_url.split("//")[1].split(":")[0], multiline=False)
-        ip_layout.add_widget(self.ip_input)
-        layout.add_widget(ip_layout)
-
-        # Connect Button
-        self.connect_button = Button(text="Connect")
-        self.connect_button.bind(on_press=self.start_websocket)
-        layout.add_widget(self.connect_button)
-
-        self.status_label = Label(text=self.received_text)
-        self.bind(received_text=self.status_label.setter('text')) # bind the label's text to the property
-        layout.add_widget(self.status_label)
-        return layout
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.ip_input = self.ids.ip_input
+        self.status_label = self.ids.status_label
+        self.connect_button = self.ids.connect_button
+        self.retry_button = self.ids.retry_button
+        self.internet_permission_label = self.ids.internet_permission_label
+        self.network_state_permission_label = self.ids.network_state_permission_label
+        self.wifi_state_permission_label = self.ids.wifi_state_permission_label
 
     def on_start(self):
         """Called when the application starts."""
@@ -53,11 +79,22 @@ class WebSocketClientApp(App):
             Logger.info('App: Application starting...')
             if platform == 'android':
                 # Request permissions immediately on startup
-                self.request_android_permissions()
+                self.request_and_check()
                 socket.setdefaulttimeout(10)
         except Exception as e:
             Logger.error(f'App: Error during startup: {str(e)}')
             Logger.error(f'App: {traceback.format_exc()}')
+    
+    def request_and_check(self):
+            self.permissions_granted = False
+            self.request_android_permissions()
+    
+    def update_permission_labels(self):
+        if platform == 'android':
+            self.internet_permission_label.text = f"Internet: {'Granted' if check_permission(Permission.INTERNET) else 'Denied'}"
+            self.network_state_permission_label.text = f"Network State: {'Granted' if check_permission(Permission.ACCESS_NETWORK_STATE) else 'Denied'}"
+            self.wifi_state_permission_label.text = f"Wifi State: {'Granted' if check_permission(Permission.ACCESS_WIFI_STATE) else 'Denied'}"
+    
 
     def request_android_permissions(self):
         """Request Android permissions explicitly"""
@@ -68,10 +105,13 @@ class WebSocketClientApp(App):
                 Logger.info('All permissions granted.')
                 self.permissions_granted = True
                 self.received_text = "All permissions granted. Ready to connect."
+                self.retry_button.disabled = True
             else:
                 Logger.info('Some permissions not granted.')
                 self.permissions_granted = False
                 self.received_text = "Permission denied. Please grant permissions in Settings."
+                self.retry_button.disabled = False
+            self.update_permission_labels()
 
         # Explicitly request each permission
         permissions = [
@@ -110,12 +150,11 @@ class WebSocketClientApp(App):
         Clock.schedule_once(lambda dt: setattr(self, 'received_text', "Connected!"))
         ws.send("Hello, Server!")
 
-    def start_websocket(self, instance):
+    def start_websocket(self):
         if platform == 'android' and not self.permissions_granted:
-            self.received_text = "Permissions not granted. Please grant permissions and restart the app."
-            self.request_android_permissions()
+            self.received_text = "Permissions not granted. Please grant permissions and retry."
             return
-
+        
         try:
             if not self.check_permissions():
                 self.received_text = "Missing required permissions!"
@@ -176,6 +215,12 @@ class WebSocketClientApp(App):
     def on_stop(self):
         if self.websocket:
             self.websocket.close()
+
+class WebSocketClientApp(App):
+
+    def build(self):
+      return RootLayout()
+
 
 if __name__ == '__main__':
     WebSocketClientApp().run()

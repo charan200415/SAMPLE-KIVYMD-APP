@@ -99,27 +99,35 @@ class RootLayout(BoxLayout):
     def request_android_permissions(self):
         """Request Android permissions explicitly"""
         from android.permissions import request_permissions, Permission
-
+        
         def callback(permissions, results):
             if all([res for res in results]):
                 Logger.info('All permissions granted.')
                 self.permissions_granted = True
                 self.received_text = "All permissions granted. Ready to connect."
-                self.retry_button.disabled = True
             else:
                 Logger.info('Some permissions not granted.')
                 self.permissions_granted = False
-                self.received_text = "Permission denied. Please grant permissions in Settings."
-                self.retry_button.disabled = False
-            self.update_permission_labels()
+                self.received_text = "Permission denied. Please try again."
+                # Force permission request again
+                Clock.schedule_once(lambda dt: self.request_android_permissions(), 1)
 
-        # Explicitly request each permission
-        permissions = [
-            Permission.INTERNET,
-            Permission.ACCESS_NETWORK_STATE,
-            Permission.ACCESS_WIFI_STATE
-        ]
-        request_permissions(permissions, callback)
+        if platform == 'android':
+            try:
+                # Get Android activity
+                PythonActivity = autoclass('org.kivy.android.PythonActivity')
+                activity = PythonActivity.mActivity
+
+                # Request permissions with full package names
+                permissions = [
+                    "android.permission.INTERNET",
+                    "android.permission.ACCESS_NETWORK_STATE",
+                    "android.permission.ACCESS_WIFI_STATE"
+                ]
+                request_permissions(permissions, callback)
+            except Exception as e:
+                Logger.error(f'Permission request error: {str(e)}')
+                self.received_text = f"Error requesting permissions: {str(e)}"
 
     def check_permissions(self):
         """Check if all required permissions are granted"""

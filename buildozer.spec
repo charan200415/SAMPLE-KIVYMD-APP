@@ -15,8 +15,16 @@ log_level = 2
 warn_on_root = 1
 
 [android]
-android.permissions = INTERNET,ACCESS_NETWORK_STATE,ACCESS_WIFI_STATE
-# Remove unnecessary permissions
+# Explicitly declare permissions with full package names
+android.permissions = android.permission.INTERNET,android.permission.ACCESS_NETWORK_STATE,android.permission.ACCESS_WIFI_STATE
+
+# Ensure these lines are present and uncommented
+android.gradle_dependencies = 'androidx.core:core:1.6.0'
+android.enable_androidx = True
+
+# Add this line to ensure permissions are properly included
+android.manifest_placeholders = [android:requestLegacyExternalStorage=true]
+
 android.add_aars = ~/.buildozer/android/platform/android-sdk/extras/android/m2repository/com/android/support/support-v4/21.0.3/support-v4-21.0.3.aar
 android.logcat_filters = *:S python:D
 android.minapi = 21
